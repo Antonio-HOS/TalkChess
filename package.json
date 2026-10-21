@@ -1,0 +1,31 @@
+{
+  "name": "talkchess",
+  "version": "1.0.0",
+  "description": "Xadrez por voz com Stockfish e Lichess",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "copy:engine": "node scripts/copy-stockfish.mjs",
+    "postinstall": "node scripts/copy-stockfish.mjs",
+    "dev": "npm run copy:engine && vite",
+    "build": "npm run copy:engine && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "react": "^19.3.1",
+    "react-chessboard": "^5.12.1",
+    "react-dom": "^19.3.1",
+    "stockfish": "^19.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5",
+    "vitest": "^3.2.7"
+  }
+}
