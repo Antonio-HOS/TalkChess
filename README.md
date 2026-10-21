@@ -14,6 +14,26 @@ npm run build   # build de produção em dist/ (qualquer host estático)
 Requer Node 18+ e, para voz, **Chrome ou Edge** (Web Speech API). Em navegadores sem reconhecimento de voz
 (ex.: Firefox) use o campo de texto, que passa pelo mesmo interpretador.
 
+## Docker (colocar no ar com senha)
+
+O app é estático; a imagem faz o build e serve tudo com **nginx**, com **senha obrigatória** (HTTP Basic Auth) em todo o site.
+
+```bash
+cp .env.example .env      # edite APP_USER, APP_PASSWORD e TALKCHESS_PORT
+docker compose up -d --build
+# http://localhost:3002  → o navegador pede usuário e senha
+```
+
+- A senha fica guardada no arquivo `.env` (fora do git). `APP_PASSWORD` é obrigatória: sem ela o container não sobe.
+  Para trocar a senha, edite o `.env` e rode `docker compose up -d`.
+- A porta padrão é **3002** (o projeto Racoes-Agricolas usa 3000, 3001 e 5432), então os dois podem rodar juntos.
+- Sem compose: `docker build -t talkchess .` e
+  `docker run -d -p 3002:3002 -e APP_USER=admin -e APP_PASSWORD='sua-senha' talkchess`.
+- **Use HTTPS em produção.** A senha (Basic Auth) trafega em texto simples em HTTP, e o navegador só libera o
+  **microfone** em HTTPS (ou `localhost`). Coloque na frente um proxy com TLS (Caddy, Traefik, Nginx Proxy Manager,
+  Cloudflare Tunnel…) apontando para a porta do container.
+- `/healthz` responde sem senha (usado pelo healthcheck do Docker).
+
 ## Funcionalidades
 
 - **Voz → lance**: “e quatro”, “cavalo efe três”, “bispo toma cê seis”, “roque curto”, “e dois para e quatro”…
