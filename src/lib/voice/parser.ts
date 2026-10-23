@@ -5,8 +5,8 @@ import { Chess, type Move } from 'chess.js';
  *
  * Estratégia: a fala é convertida em *restrições* (peça, casa de origem/destino,
  * captura, promoção...) e confrontada com a lista de lances LEGAIS da posição.
- * Assim "cavalo f3", "Nf3", "cavalo g1 para f3", "g1 f3" e "efe três" chegam ao mesmo lance,
- * e a ambiguidade é detectada de forma precisa.
+ * Assim "cavalo f3", "Nf3", "cavalo g1 para f3", "g1 f3", "efe três" e "cavalo toma peão"
+ * chegam ao mesmo lance, e a ambiguidade é detectada de forma precisa.
  */
 
 export type VoiceAction = 'undo' | 'new' | 'resign' | 'hint' | 'flip' | 'draw' | 'repeat' | 'stop' | 'confirm' | 'cancel';
@@ -116,6 +116,8 @@ const toDigit = (t: string) => (/^[1-8]$/.test(t) ? t : NUMBERS[t]);
 
 interface Interp {
   piece?: string;
+  /** Peça capturada, quando a fala diz "cavalo toma peão" sem casa. */
+  captured?: string;
   squares: string[];
   capture: boolean;
   promo?: string;
@@ -130,7 +132,7 @@ const UCI_GLUED = /^([a-h][1-8])([a-h][1-8])(?:=?([nbrq]))?$/;
 /** Converte a fala normalizada em uma ou mais interpretações (alternativas). */
 export function extractInterps(norm: string): Interp[] {
   // roque
-  if (/\broque\b|\bcastle\b|\bcastles\b|\bcastling\b/.test(norm)) {
+  if (/\broque\b|\brock\b|\bcastle\b|\bcastles\b|\bcastling\b/.test(norm)) {
     let castle: Interp['castle'] = 'any';
     if (/\b(curto|pequeno|menor|short|king|kingside|lado do rei)\b/.test(norm)) castle = 'k';
     else if (/\b(longo|grande|maior|long|queen|queenside|lado da dama)\b/.test(norm)) castle = 'q';
@@ -181,16 +183,21 @@ export function extractInterps(norm: string): Interp[] {
     // peça
     if (t in PIECES) {
       const p = PIECES[t];
+      const last = base.squares[base.squares.length - 1];
+      const prev = tokens[i - 1];
+      const looksLikePromo = Boolean(
+        last && (last[1] === '8' || last[1] === '1') && !CAPTURE_WORDS.has(prev) && 'qrbn'.includes(p),
+      );
       if (expectPromo) {
         base.promo = p;
         expectPromo = false;
+      } else if (base.capture && base.captured === undefined && !looksLikePromo) {
+        // "cavalo toma peão", "bispo toma a dama", "knight takes pawn"
+        base.captured = p;
       } else if (!base.piece && base.squares.length === 0 && !pendingCaptureBeforePiece) {
         base.piece = p;
-      } else if (base.squares.length >= 1 && !base.promo && 'qrbn'.includes(p)) {
-        const last = base.squares[base.squares.length - 1];
-        const rankChar = last[1];
-        const prev = tokens[i - 1];
-        if ((rankChar === '8' || rankChar === '1') && !CAPTURE_WORDS.has(prev)) base.promo = p;
+      } else if (looksLikePromo && !base.promo) {
+        base.promo = p;
       }
       continue;
     }
@@ -213,6 +220,9 @@ export function extractInterps(norm: string): Interp[] {
       continue;
     }
 
+    // Artigo: "bispo toma a dama" — o "a" não é a coluna a
+    if ((t === 'a' || t === 'ah') && base.capture && next && next in PIECES) continue;
+
     // Coluna sozinha: dica de origem se é inequívoca, ou se antecede "toma"
     if (fileWord) {
       const strict = t in FILE_STRICT || /^[a-h]$/.test(t);
@@ -232,7 +242,8 @@ export function extractInterps(norm: string): Interp[] {
     // demais palavras (para, pra, em, vai, de, ...) são ignoradas
   }
 
-  if (base.squares.length === 0) return [];
+  // "cavalo toma peão": sem casa, mas com peça que move e peça capturada
+  if (base.squares.length === 0 && !(base.capture && base.piece && base.captured)) return [];
   return [base, ...alternatives];
 }
 
@@ -251,6 +262,7 @@ function filterMoves(moves: Move[], it: Interp, level: number): Move[] {
       // sem peça falada e sem casa de origem => peão
       if (m.piece !== 'p') return false;
     }
+    if (it.captured && m.captured !== it.captured) return false;
     if (level < 1 && it.capture && !m.captured) return false;
     if (level < 2) {
       if (it.fromFile && m.from[0] !== it.fromFile) return false;
@@ -265,10 +277,29 @@ function filterMoves(moves: Move[], it: Interp, level: number): Move[] {
   });
 }
 
+/** "cavalo toma peão": casa a casa só quando existe um único lance assim. */
+function matchPieceCapture(moves: Move[], it: Interp): Move[] {
+  return moves.filter((m) => {
+    if (!m.captured || m.captured !== it.captured) return false;
+    if (it.piece && m.piece !== it.piece) return false;
+    if (it.fromFile && m.from[0] !== it.fromFile) return false;
+    if (it.fromRank && m.from[1] !== it.fromRank) return false;
+    if (it.promo) {
+      if (m.promotion !== it.promo) return false;
+    } else if (m.promotion && m.promotion !== 'q') {
+      return false;
+    }
+    return true;
+  });
+}
+
 function matchInterp(moves: Move[], it: Interp): Move[] {
   if (it.castle) {
     const side = (m: Move) => (m.flags.includes('k') ? 'k' : m.flags.includes('q') ? 'q' : null);
     return moves.filter((m) => side(m) !== null && (it.castle === 'any' || side(m) === it.castle));
+  }
+  if (it.squares.length === 0) {
+    return it.capture && it.piece && it.captured ? matchPieceCapture(moves, it) : [];
   }
   for (let level = 0; level <= 3; level++) {
     const found = filterMoves(moves, it, level);
@@ -320,7 +351,9 @@ export function parseOne(transcript: string, fen: string): VoiceResult {
   const it = interps[0];
   const what = it.castle
     ? 'Esse roque não é possível agora'
-    : `Lance ilegal: ${it.piece ? pieceName(it.piece) + ' ' : ''}${it.squares.join(' → ')}`;
+    : it.squares.length === 0 && it.captured
+      ? `Lance ilegal: ${it.piece ? pieceName(it.piece) + ' ' : ''}toma ${pieceName(it.captured)}`
+      : `Lance ilegal: ${it.piece ? pieceName(it.piece) + ' ' : ''}${it.squares.join(' → ')}`;
   return { kind: 'illegal', heard, reason: what };
 }
 

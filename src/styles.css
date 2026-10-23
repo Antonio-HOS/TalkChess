@@ -842,6 +842,50 @@ a {
   z-index: 50;
 }
 
+/* ---------- câmera / tabuleiro físico ---------- */
+.board-col.camera-on {
+  width: min(520px, calc(100vw - 48px));
+}
+.board-col.camera-on .board-row {
+  width: 100%;
+  justify-content: center;
+}
+.board-col.camera-on .board-box {
+  width: min(300px, 100%);
+}
+
+.cam-panel {
+  margin: 8px 0 12px;
+}
+.cam-stage {
+  position: relative;
+  width: min(100%, calc(42vh * var(--cam-aspect, 1.333)));
+  aspect-ratio: var(--cam-aspect, 1.333);
+  margin: 0 auto 8px;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cam-stage video,
+.cam-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.cam-stage video {
+  object-fit: fill;
+  background: #000;
+}
+.cam-overlay {
+  touch-action: none;
+  cursor: grab;
+}
+.cam-status {
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
 /* ---------- responsivo ---------- */
 @media (max-width: 1000px) {
   :root {

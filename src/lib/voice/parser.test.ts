@@ -47,9 +47,56 @@ describe('capturas, roque e xeque', () => {
   const beforeCastle = play('e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5');
   it('roque curto', () => expect(san('roque curto', beforeCastle)).toBe('O-O'));
   it('roque pequeno', () => expect(san('roque pequeno', beforeCastle)).toBe('O-O'));
+  it('rock curto', () => expect(san('rock curto', beforeCastle)).toBe('O-O'));
+  it('rock sozinho', () => expect(san('rock', beforeCastle)).toBe('O-O'));
   it('O-O', () => expect(san('O-O', beforeCastle)).toBe('O-O'));
   it('roque longo ilegal', () => expect(parseOne('roque longo', beforeCastle).kind).toBe('illegal'));
+  it('rock longo ilegal', () => expect(parseOne('rock longo', beforeCastle).kind).toBe('illegal'));
   it('bispo toma f7', () => expect(san('bispo toma f7', beforeCastle)).toBe('Bxf7+'));
+});
+
+describe('captura peça contra peça', () => {
+  const knightTakesPawn = play('e4', 'e5', 'Nf3', 'Nc6');
+  it('cavalo toma peão quando é o único', () => expect(san('cavalo toma peão', knightTakesPawn)).toBe('Nxe5'));
+  it('inglês: knight takes pawn', () => expect(san('knight takes pawn', knightTakesPawn)).toBe('Nxe5'));
+  it('cavalo x peão', () => expect(san('cavalo x peão', knightTakesPawn)).toBe('Nxe5'));
+  it('sem alvo continua desconhecido', () => expect(parseOne('cavalo toma', knightTakesPawn).kind).toBe('unknown'));
+  it('inexistente é ilegal', () => {
+    const r = parseOne('cavalo toma peão', START);
+    expect(r.kind).toBe('illegal');
+  });
+
+  const knightFork = '4k3/8/8/4p1b1/8/5N2/8/4K3 w - - 0 1';
+  it('distingue a peça capturada', () => {
+    expect(san('cavalo toma peão', knightFork)).toBe('Nxe5');
+    expect(san('cavalo toma bispo', knightFork)).toBe('Nxg5');
+  });
+
+  it('peão toma peão', () => expect(san('peão toma peão', play('e4', 'd5'))).toBe('exd5'));
+  it('peão toma peão ambíguo', () => {
+    const r = parseOne('peão toma peão', play('e4', 'd5', 'd4', 'e5'));
+    expect(r.kind).toBe('ambiguous');
+    if (r.kind === 'ambiguous') expect(r.candidates.map((m) => m.san).sort()).toEqual(['dxe5', 'exd5']);
+  });
+  it('en passant', () => expect(san('peão toma peão', play('e4', 'a6', 'e5', 'd5'))).toBe('exd6'));
+
+  it('bispo toma a dama', () => expect(san('bispo toma a dama', '4k3/8/8/8/2B5/3q4/8/4K3 w - - 0 1')).toBe('Bxd3'));
+  it('dama toma torre', () => expect(san('rainha toma torre', '3rk3/8/8/8/8/8/8/3QK3 w - - 0 1')).toBe('Qxd8+'));
+  it('torre toma dama', () => expect(san('torre toma dama', 'q3k3/8/8/8/8/8/8/R3K3 w - - 0 1')).toBe('Rxa8+'));
+  it('rei toma peão', () => expect(san('rei toma peão', '4k3/8/8/8/8/8/3p4/4K3 w - - 0 1')).toBe('Kxd2'));
+  it('peão toma torre e promove', () => expect(san('peão toma torre', '3r4/4P3/8/8/8/8/8/4K2k w - - 0 1')).toBe('exd8=Q'));
+  it('peão toma torre vira cavalo', () => expect(san('peão toma torre vira cavalo', '3r4/4P3/8/8/8/8/8/4K2k w - - 0 1')).toBe('exd8=N'));
+
+  const twoKnights = '4k3/8/8/8/4p3/8/3N1N2/4K3 w - - 0 1';
+  it('ambíguo entre dois cavalos', () => {
+    const r = parseOne('cavalo toma peão', twoKnights);
+    expect(r.kind).toBe('ambiguous');
+    if (r.kind === 'ambiguous') expect(r.candidates.map((m) => m.san).sort()).toEqual(['Ndxe4', 'Nfxe4']);
+  });
+  it('desambigua pela coluna', () => {
+    expect(san('cavalo dê toma peão', twoKnights)).toBe('Ndxe4');
+    expect(san('cavalo efe toma peão', twoKnights)).toBe('Nfxe4');
+  });
 });
 
 describe('ambiguidade e desambiguação', () => {

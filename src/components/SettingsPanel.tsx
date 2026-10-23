@@ -63,10 +63,11 @@ export function HelpPanel() {
     ['“e quatro”, “peão e4”', 'Peão para e4'],
     ['“cavalo efe três”, “Nf3”', 'Cavalo para f3'],
     ['“bispo toma cê seis”', 'Captura com o bispo em c6'],
+    ['“cavalo toma peão”, “bispo toma dama”', 'Essa captura, se for a única possível'],
     ['“e toma dê cinco”', 'Peão da coluna e captura em d5'],
     ['“e dois para e quatro”', 'Origem e destino (e2 → e4)'],
     ['“cavalo bê d dois” / “cavalo b1 d2”', 'Desambiguar entre dois cavalos'],
-    ['“roque curto” / “roque longo”', 'Roque pequeno / grande'],
+    ['“roque curto” / “roque longo” (também “rock”)', 'Roque pequeno / grande'],
     ['“e oito dama”, “promove para cavalo”', 'Promoção (padrão: dama)'],
     ['“desfazer”', 'Volta o seu último lance'],
     ['“dica”', 'Stockfish sugere o melhor lance'],
@@ -94,6 +95,13 @@ export function HelpPanel() {
           ))}
         </tbody>
       </table>
+      <h3>Tabuleiro físico</h3>
+      <p className="muted small">
+        Em Partida, “Câmera no tabuleiro” liga a câmera. Deixe as peças iguais às da tela, arraste os quatro pontos até os cantos
+        e confirme. Mova uma peça de verdade e afaste a mão: o lance entra e o Stockfish fala a resposta. Faça esse lance no
+        tabuleiro e espere a confirmação antes do próximo. “Repetir” ouve o lance de novo. Luz parelha e o tabuleiro inteiro
+        na imagem ajudam. Se casas vazias piscam, aumente o rigor.
+      </p>
       <h3>Atalhos</h3>
       <ul className="small">
         <li>

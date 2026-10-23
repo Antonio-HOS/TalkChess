@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Chess, type Move } from 'chess.js';
 import { BoardView, type BoardArrow } from './components/BoardView';
+import { CameraBoard } from './components/CameraBoard';
 import { EvalBar } from './components/EvalBar';
 import { LichessPanel } from './components/LichessPanel';
 import { MovesPanel } from './components/MovesPanel';
@@ -87,6 +88,7 @@ export default function App() {
   const [gameTc, setGameTc] = useState<TimeControl | null>(null);
   const [clocks, setClocks] = useState({ white: 0, black: 0 });
   const [toast, setToast] = useState<string | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
 
   const savedPlay = useRef<SavedPlay | null>(null);
   const thinkToken = useRef(0);
@@ -122,8 +124,11 @@ export default function App() {
   const micRef = useRef(mic);
   micRef.current = mic;
 
+  const cameraOnRef = useRef(false);
+  cameraOnRef.current = cameraOn;
+
   const speakText = useCallback(async (text: string) => {
-    if (!stateRef.current.settings.speakMoves) return;
+    if (!stateRef.current.settings.speakMoves && !cameraOnRef.current) return;
     micRef.current.setPaused(true);
     try {
       await speak(text, stateRef.current.settings.voiceLang);
@@ -374,7 +379,8 @@ export default function App() {
       }
       dispatch({ type: 'move', from: chosen.from, to: chosen.to, promotion: chosen.promotion });
       setThinking(false);
-      void speakText(spoken);
+      if (cameraOnRef.current) say(`Stockfish: ${spoken}`, 'ok');
+      void speakText(cameraOnRef.current ? `Meu lance: ${spoken}` : spoken);
     })().catch((e) => {
       console.error(e);
       setThinking(false);
@@ -663,6 +669,10 @@ export default function App() {
     if (s.settings.sounds && r.kind === 'move') playSound('listen');
     switch (r.kind) {
       case 'move': {
+        if (cameraOn && s.mode === 'play') {
+          say('No modo câmera, mova a peça no tabuleiro físico.', 'warn', r.heard);
+          return;
+        }
         if (s.mode === 'review') {
           say('Estou no modo revisão. Use “Jogar a partir daqui” para continuar jogando.', 'warn', r.heard);
           return;
@@ -740,6 +750,10 @@ export default function App() {
   }, [flip]);
 
   useEffect(() => {
+    if (mode !== 'play') setCameraOn(false);
+  }, [mode]);
+
+  useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(t);
@@ -747,7 +761,9 @@ export default function App() {
 
   // ------------------------------------------------------------------ apresentação
   const movableColor: Color | null =
-    atLive && !result && (mode === 'play' || (mode === 'puzzle' && puzzle?.status === 'solving')) ? playerColor : null;
+    !cameraOn && atLive && !result && (mode === 'play' || (mode === 'puzzle' && puzzle?.status === 'solving'))
+      ? playerColor
+      : null;
 
   const arrows: BoardArrow[] = [];
   if (hint && atLive) arrows.push(hint);
@@ -806,7 +822,7 @@ export default function App() {
   const pvText = shownEval && shownEval.pv.length ? pvToSan(viewFen, shownEval.pv, 6).join(' ') : '';
 
   return (
-    <div className="app">
+    <div className={`app${cameraOn ? ' camera-on' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <span className="logo">♞</span>
@@ -826,8 +842,30 @@ export default function App() {
       {engines.error && <div className="banner err">{engines.error}</div>}
 
       <main className="layout">
-        <section className={`board-col ${evalActive ? 'with-eval' : ''}`}>
+        <section className={`board-col ${evalActive ? 'with-eval' : ''}${cameraOn ? ' camera-on' : ''}`}>
           {bar(opposite(orientation))}
+          {cameraOn && (
+            <CameraBoard
+              fen={liveFen}
+              playerColor={playerColor}
+              paused={!!result || !atLive}
+              pausedText={result ? 'Partida encerrada.' : 'Volte ao lance atual para a câmera continuar.'}
+              onPlayerMove={(move) => {
+                const ok = playerMove(move.from, move.to, move.promotion);
+                if (ok) say(`Você jogou ${move.san}`, 'ok');
+                return ok;
+              }}
+              onRepeat={() => {
+                const last = stateRef.current.game.moves[stateRef.current.game.moves.length - 1];
+                if (!last) {
+                  say('Ainda não há lances', 'warn');
+                  return;
+                }
+                say(`Último lance: ${last.san}`, 'ok');
+                void speakText(spokenMove(last));
+              }}
+            />
+          )}
           <div className="board-row">
             {evalActive && <EvalBar evaluation={shownEval} orientation={orientation} />}
             <div className="board-box">
@@ -962,7 +1000,13 @@ export default function App() {
                     </select>
                   </label>
                   <button className="primary wide" onClick={requestNew}>Nova partida</button>
-                  <p className="small muted">A força pode ser alterada durante o jogo e vale a partir do próximo lance do Stockfish.</p>
+                  <button className="wide" onClick={() => setCameraOn((v) => !v)}>
+                    {cameraOn ? 'Desligar câmera' : 'Câmera no tabuleiro'}
+                  </button>
+                  <p className="small muted">
+                    A força pode ser alterada durante o jogo e vale a partir do próximo lance do Stockfish. No modo câmera, aponte
+                    para o tabuleiro físico: você move a peça e o Stockfish fala o lance dele.
+                  </p>
                 </div>
                 )}
 
